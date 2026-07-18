@@ -35,6 +35,12 @@ $masked           = $has_key ? \AVM\Support\Crypto::mask( Settings::get_api_key(
 		<?php wp_nonce_field( 'avm_save_settings' ); ?>
 
 		<h2><?php esc_html_e( 'AI provider', 'ai-visibility-monitor' ); ?></h2>
+		<div class="notice notice-info inline" style="margin:0 0 12px;">
+			<p>
+				<strong><?php esc_html_e( 'This is your own provider account.', 'ai-visibility-monitor' ); ?></strong>
+				<?php esc_html_e( 'All AI queries are made directly from this website using the key below, and the provider bills you directly for usage. Emotio does not process the calls and does not charge for them.', 'ai-visibility-monitor' ); ?>
+			</p>
+		</div>
 		<table class="form-table" role="presentation">
 			<tr>
 				<th scope="row"><label for="avm-provider"><?php esc_html_e( 'Provider', 'ai-visibility-monitor' ); ?></label></th>

@@ -367,6 +367,17 @@ class Admin {
 			$brands->insert( $data );
 		}
 
+		// Connect the customer's own provider account (spec §6.2). The key is
+		// their own; charges are billed to them directly by the provider.
+		$provider = sanitize_key( wp_unslash( $_POST['provider'] ?? '' ) );
+		if ( '' !== $provider && \AVM\Providers\ProviderRegistry::get( $provider ) ) {
+			Settings::update( array( 'provider' => $provider ) );
+			$key = isset( $_POST['api_key'] ) ? trim( (string) wp_unslash( $_POST['api_key'] ) ) : '';
+			if ( '' !== $key && ! Settings::key_is_constant( $provider ) ) {
+				Settings::set_api_key( $provider, $key );
+			}
+		}
+
 		// Generate draft prompts from the profile.
 		if ( isset( $_POST['generate_prompts'] ) ) {
 			$gen = new PromptGenerator();

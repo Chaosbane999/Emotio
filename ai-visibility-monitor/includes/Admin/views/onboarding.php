@@ -8,8 +8,10 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$details = $brand && ! empty( $brand['details'] ) ? (array) json_decode( $brand['details'], true ) : array();
-$alts    = $brand ? implode( ', ', (array) json_decode( $brand['alt_names'], true ) ) : '';
+$details   = $brand && ! empty( $brand['details'] ) ? (array) json_decode( $brand['details'], true ) : array();
+$alts      = $brand ? implode( ', ', (array) json_decode( $brand['alt_names'], true ) ) : '';
+$providers = \AVM\Providers\ProviderRegistry::all();
+$selected  = \AVM\Support\Settings::get( 'provider', 'openai' );
 ?>
 <div class="wrap avm-wrap avm-onboarding">
 	<h1><?php esc_html_e( 'AI Visibility Monitor — Setup', 'ai-visibility-monitor' ); ?></h1>
@@ -50,6 +52,33 @@ $alts    = $brand ? implode( ', ', (array) json_decode( $brand['alt_names'], tru
 			<tr>
 				<th scope="row"><label for="avm-geo"><?php esc_html_e( 'Geographic market', 'ai-visibility-monitor' ); ?></label></th>
 				<td><input type="text" id="avm-geo" name="geo" class="regular-text" value="<?php echo esc_attr( $details['geo'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'e.g. London, UK', 'ai-visibility-monitor' ); ?>" /></td>
+			</tr>
+		</table>
+
+		<h2><?php esc_html_e( 'Connect your AI provider', 'ai-visibility-monitor' ); ?></h2>
+		<div class="notice notice-info inline" style="margin:0 0 12px;">
+			<p>
+				<strong><?php esc_html_e( 'You use your own provider account.', 'ai-visibility-monitor' ); ?></strong>
+				<?php esc_html_e( 'Query charges are billed to you directly by the provider (e.g. OpenAI or Perplexity) — never by Emotio. Your key stays on this website: it is encrypted, never shown in full, and never sent to Emotio.', 'ai-visibility-monitor' ); ?>
+			</p>
+		</div>
+		<table class="form-table" role="presentation">
+			<tr>
+				<th scope="row"><label for="avm-onb-provider"><?php esc_html_e( 'Provider', 'ai-visibility-monitor' ); ?></label></th>
+				<td>
+					<select id="avm-onb-provider" name="provider">
+						<?php foreach ( $providers as $slug => $provider ) : ?>
+							<option value="<?php echo esc_attr( $slug ); ?>"<?php selected( $selected, $slug ); ?>><?php echo esc_html( $provider->label() ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="avm-onb-key"><?php esc_html_e( 'Your API key', 'ai-visibility-monitor' ); ?></label></th>
+				<td>
+					<input type="password" id="avm-onb-key" name="api_key" value="" autocomplete="off" class="regular-text" placeholder="<?php esc_attr_e( 'Paste your provider API key', 'ai-visibility-monitor' ); ?>" />
+					<p class="description"><?php esc_html_e( 'Optional now — you can add or change it later in Settings. Leave blank to skip.', 'ai-visibility-monitor' ); ?></p>
+				</td>
 			</tr>
 		</table>
 
