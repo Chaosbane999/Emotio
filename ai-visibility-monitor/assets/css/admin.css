@@ -1,0 +1,73 @@
+/* AI Visibility Monitor — admin styles */
+
+.avm-wrap .description { color: #666; }
+
+.avm-cards {
+	display: grid;
+	grid-template-columns: repeat( auto-fill, minmax( 180px, 1fr ) );
+	gap: 16px;
+	margin: 20px 0;
+}
+.avm-card {
+	background: #fff;
+	border: 1px solid #e2e4e7;
+	border-radius: 8px;
+	padding: 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+.avm-card-score { border-color: #2271b1; }
+.avm-card-label { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #666; }
+.avm-card-value { font-size: 30px; font-weight: 600; line-height: 1.1; }
+.avm-card-value small { font-size: 14px; color: #888; }
+.avm-card-delta { font-weight: 600; color: #1a7f37; }
+
+.avm-components { max-width: 640px; }
+
+.avm-confidence { font-size: 14px; }
+
+.avm-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 600;
+	background: #f0f0f1;
+	color: #444;
+	text-transform: capitalize;
+}
+.avm-badge-active, .avm-badge-completed, .avm-badge-high { background: #d7f0dd; color: #14622b; }
+.avm-badge-draft, .avm-badge-open { background: #fcf0d3; color: #7a5b00; }
+.avm-badge-paused, .avm-badge-dismissed { background: #f0f0f1; color: #555; }
+.avm-badge-high { background: #fbe0e0; color: #8a1f1f; }
+
+.avm-form .avm-inline { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+.avm-form .avm-inline label { display: flex; flex-direction: column; font-size: 12px; gap: 4px; }
+
+.avm-inline-form { display: inline; }
+.avm-row-actions .button-link { margin-right: 8px; }
+.avm-row-actions .delete, .button-link.delete { color: #b32d2e; }
+
+.avm-rec {
+	background: #fff;
+	border: 1px solid #e2e4e7;
+	border-left: 4px solid #dcdcde;
+	border-radius: 6px;
+	padding: 14px 18px;
+	margin: 12px 0;
+}
+.avm-rec-high { border-left-color: #d63638; }
+.avm-rec-medium { border-left-color: #dba617; }
+.avm-rec-low { border-left-color: #2271b1; }
+.avm-rec-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.avm-rec-form { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+
+.avm-test-result { margin-left: 10px; font-weight: 600; }
+.avm-test-result.is-success { color: #1a7f37; }
+.avm-test-result.is-error { color: #b32d2e; }
+
+.avm-widget .avm-score { font-size: 16px; }
+.avm-widget .avm-delta { color: #1a7f37; font-weight: 600; }
+.avm-widget-list { margin: 8px 0; }
+.avm-widget-list li { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #f0f0f1; }
