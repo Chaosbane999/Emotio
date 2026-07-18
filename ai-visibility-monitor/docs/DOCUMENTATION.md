@@ -65,8 +65,14 @@ recommends a real server cron:
 
 ### 8. Removing data (§17.4)
 Deactivation keeps all data. To permanently delete everything on uninstall,
-set `avm_delete_data_on_uninstall` to `1` before deleting the plugin (a UI
-toggle for this is a planned addition). Otherwise data is retained for reinstall.
+tick **Settings → Data & privacy → On uninstall** before deleting the plugin.
+Otherwise data is retained for reinstall.
+
+### 9. If your API key stops working after a security change
+If WordPress security salts in `wp-config.php` are regenerated, previously saved
+API keys can no longer be decrypted. The Settings screen detects this and shows
+a clear message asking you to re-enter the key. Defining the key as a
+`wp-config.php` constant avoids this entirely.
 
 ---
 
@@ -134,5 +140,7 @@ histories never live in options or post meta (§18.4).
 ### Known limitations of this scaffold
 See the project README section "How I'd improve it" and the inline `TODO`
 notes. The analysis engine is deterministic/heuristic (no LLM-based extraction
-yet); citation extraction relies on URLs present in answer text because the
-launch provider's Chat Completions endpoint does not return structured sources.
+yet). Citation quality depends on the provider: the **Perplexity** provider
+returns real source URLs, whereas the **OpenAI** Chat Completions endpoint does
+not, so for OpenAI citations are parsed heuristically from URLs in the answer
+text.

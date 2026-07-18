@@ -163,8 +163,15 @@ class OpenAiProvider implements ProviderInterface {
 	 * @return float
 	 */
 	public function estimate_cost( $model, $prompt_tokens, $completion_tokens ) {
-		$rates = isset( $this->pricing[ $model ] ) ? $this->pricing[ $model ] : $this->pricing['gpt-4o-mini'];
-		$cost  = ( $prompt_tokens / 1000 ) * $rates[0] + ( $completion_tokens / 1000 ) * $rates[1];
+		/**
+		 * Filter provider pricing so keys can be updated without a plugin release.
+		 *
+		 * @param array  $pricing model => [ prompt_per_1k, completion_per_1k ].
+		 * @param string $slug    Provider slug.
+		 */
+		$pricing = apply_filters( 'avm_provider_pricing', $this->pricing, $this->slug() );
+		$rates   = isset( $pricing[ $model ] ) ? $pricing[ $model ] : reset( $pricing );
+		$cost    = ( $prompt_tokens / 1000 ) * $rates[0] + ( $completion_tokens / 1000 ) * $rates[1];
 		return round( $cost, 5 );
 	}
 }

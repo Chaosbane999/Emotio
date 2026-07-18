@@ -37,6 +37,7 @@ if ( class_exists( 'AVM\\Support\\Capabilities' ) ) {
 $options = array(
 	'avm_settings',
 	'avm_api_key_enc',
+	'avm_api_key_fp',
 	'avm_db_version',
 	'avm_onboarded',
 	'avm_last_score',

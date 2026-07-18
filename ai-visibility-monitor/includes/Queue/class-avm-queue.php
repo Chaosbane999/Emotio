@@ -128,41 +128,57 @@ class Queue {
 	public static function process_batch() {
 		global $wpdb;
 
-		$batch_size = max( 1, (int) Settings::get( 'batch_size', 3 ) );
-		$table      = $wpdb->prefix . 'avm_queue';
-		$now        = current_time( 'mysql' );
-
-		$jobs = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT * FROM {$table} WHERE status = 'queued' AND available_at <= %s ORDER BY id ASC LIMIT %d",
-				$now,
-				$batch_size
-			),
-			ARRAY_A
-		);
-
-		if ( ! $jobs ) {
+		// Batch-level lock: prevents two overlapping cron contexts from both
+		// entering the loop. Non-blocking — if another run holds it, skip.
+		if ( ! self::acquire_lock() ) {
 			return;
 		}
 
-		$executor    = new LocalQueryExecutor();
-		$retry_limit = max( 0, (int) Settings::get( 'retry_limit', 3 ) );
-		$prompts     = new PromptsRepository();
+		try {
+			$batch_size = max( 1, (int) Settings::get( 'batch_size', 3 ) );
+			$table      = $wpdb->prefix . 'avm_queue';
+			$now        = current_time( 'mysql' );
 
-		foreach ( $jobs as $job ) {
-			if ( ! self::allowance_remaining() ) {
-				Logger::log( 'queue', 'Batch halted: monthly allowance reached', Logger::WARNING );
-				break;
+			$jobs = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT * FROM {$table} WHERE status = 'queued' AND available_at <= %s ORDER BY id ASC LIMIT %d",
+					$now,
+					$batch_size
+				),
+				ARRAY_A
+			);
+
+			if ( ! $jobs ) {
+				return;
 			}
 
-			// Claim the job.
-			$wpdb->update( $table, array( 'status' => 'processing' ), array( 'id' => (int) $job['id'] ), array( '%s' ), array( '%d' ) );
+			$executor    = new LocalQueryExecutor();
+			$retry_limit = max( 0, (int) Settings::get( 'retry_limit', 3 ) );
+			$prompts     = new PromptsRepository();
 
-			$prompt = $prompts->find( (int) $job['prompt_id'] );
-			if ( ! $prompt ) {
-				$wpdb->delete( $table, array( 'id' => (int) $job['id'] ), array( '%d' ) );
-				continue;
-			}
+			foreach ( $jobs as $job ) {
+				if ( ! self::allowance_remaining() ) {
+					Logger::log( 'queue', 'Batch halted: monthly allowance reached', Logger::WARNING );
+					break;
+				}
+
+				// Atomic claim: only proceed if THIS context flips queued->processing.
+				// A second worker that read the same row gets 0 affected rows and skips.
+				$claimed = $wpdb->query(
+					$wpdb->prepare(
+						"UPDATE {$table} SET status = 'processing' WHERE id = %d AND status = 'queued'",
+						(int) $job['id']
+					)
+				);
+				if ( ! $claimed ) {
+					continue;
+				}
+
+				$prompt = $prompts->find( (int) $job['prompt_id'] );
+				if ( ! $prompt ) {
+					$wpdb->delete( $table, array( 'id' => (int) $job['id'] ), array( '%d' ) );
+					continue;
+				}
 
 			$result = $executor->execute( $prompt );
 
@@ -199,9 +215,53 @@ class Queue {
 				continue;
 			}
 
-			// Success: remove the job.
-			$wpdb->delete( $table, array( 'id' => (int) $job['id'] ), array( '%d' ) );
+				// Success: remove the job.
+				$wpdb->delete( $table, array( 'id' => (int) $job['id'] ), array( '%d' ) );
+			}
+		} finally {
+			self::release_lock();
 		}
+	}
+
+	/**
+	 * Acquire the non-blocking batch lock. Returns false if already held.
+	 *
+	 * Uses add_option (which fails atomically if the row already exists) as a
+	 * lightweight cross-request mutex, with a self-expiry guard against a
+	 * crashed run leaving the lock stuck.
+	 *
+	 * @return bool
+	 */
+	private static function acquire_lock() {
+		global $wpdb;
+		$expiry = time() + 5 * MINUTE_IN_SECONDS;
+
+		// Atomic insert: only one context wins the race to create the row.
+		$got = $wpdb->query(
+			$wpdb->prepare(
+				"INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')",
+				'avm_queue_lock',
+				(string) $expiry
+			)
+		);
+		if ( $got ) {
+			return true;
+		}
+
+		// Row exists — take it over only if the previous holder's lease expired.
+		$current = (int) get_option( 'avm_queue_lock', 0 );
+		if ( $current > 0 && $current < time() ) {
+			delete_option( 'avm_queue_lock' );
+			return self::acquire_lock();
+		}
+		return false;
+	}
+
+	/**
+	 * Release the batch lock.
+	 */
+	private static function release_lock() {
+		delete_option( 'avm_queue_lock' );
 	}
 
 	/**

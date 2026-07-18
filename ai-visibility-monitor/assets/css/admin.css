@@ -67,6 +67,11 @@
 .avm-test-result.is-success { color: #1a7f37; }
 .avm-test-result.is-error { color: #b32d2e; }
 
+.avm-change-icon { font-weight: 700; }
+.avm-change-loss .avm-change-icon { color: #b32d2e; }
+.avm-change-gain .avm-change-icon { color: #1a7f37; }
+.avm-change-shift .avm-change-icon { color: #996800; }
+
 .avm-widget .avm-score { font-size: 16px; }
 .avm-widget .avm-delta { color: #1a7f37; font-weight: 600; }
 .avm-widget-list { margin: 8px 0; }

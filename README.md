@@ -47,7 +47,29 @@ environment) — that is the recommended next step (see below).
 
 ---
 
-## How I would improve it
+## Improvements shipped in this round
+
+The following items from the review below have now been implemented, verified
+with lint + load/contract tests + executed unit assertions:
+
+- **Salt-change key detection & recovery.** `Crypto::key_fingerprint()` +
+  `Settings::key_status()` distinguish *missing* from *unreadable* keys; the
+  Settings screen shows a clear "re-enter your key" error when WordPress salts
+  have changed. (13 crypto + 6 key-status assertions pass.)
+- **Second provider — Perplexity** (`class-avm-perplexity-provider.php`), which
+  returns *real* citations, registered alongside OpenAI. Proves the abstraction.
+- **Atomic job claim + non-blocking batch lock** in the queue, killing the
+  double-processing race (guarded `UPDATE … WHERE status='queued'`).
+- **Filterable provider pricing** (`avm_provider_pricing`) and a **month-end
+  usage/cost forecast** on the diagnostics screen.
+- **Change detection surfaced** — a new *Changes* report (won/lost mentions,
+  won/lost citations, recommendation shifts) via `ChangeService`.
+- **Data-removal UI toggle** for opt-in uninstall wipe.
+- **CI + quality tooling**: `composer.json`, PHPCS (WordPress-Extra), PHPStan
+  (level 5 + WP extension), PHPUnit with a runnable `CryptoTest`, and a GitHub
+  Actions workflow running lint/PHPCS/PHPStan/PHPUnit on PHP 7.4 & 8.2.
+
+## How I would improve it (remaining roadmap)
 
 ### 1. Correctness & accuracy of detection (highest value)
 - **The analysis engine is the product.** The current detector is deterministic
@@ -64,39 +86,29 @@ environment) — that is the recommended next step (see below).
   "newly detected competitors" (§10.2) instead of silent misses.
 
 ### 2. Make the provider layer earn its abstraction
-- Ship a **second provider early** (Perplexity — it returns real citations,
-  which OpenAI Chat Completions does not). Nothing proves an abstraction like a
-  second implementation, and citation quality is central to the score (35%).
-- Add a **provider capability map** (supports_citations, supports_search) and
-  degrade scoring gracefully when a provider can't cite, so the score isn't
-  silently penalised by provider choice.
+- ✅ Perplexity provider shipped (real citations). **Still to do:** add a
+  **provider capability map** consumed by scoring so a provider that can't cite
+  doesn't silently drag the citation component (35%) to zero.
 
 ### 3. Queue & scheduling robustness
-- Prefer **Action Scheduler** as the primary engine (it's battle-tested,
-  admin-visible, and handles concurrency/locking) and keep the WP-Cron table
-  queue only as a fallback. The code already detects it; lean on it harder.
-- Add a **claim lock** (e.g. `status='processing' WHERE id=… AND status='queued'`
-  as an atomic guarded update) to prevent double-processing when two cron
-  contexts overlap — the current claim is a plain update and could race.
+- ✅ Atomic guarded claim + non-blocking batch lock shipped. **Still to do:**
+  make **Action Scheduler** the *primary* engine when present (admin-visible,
+  battle-tested) and keep the custom table only as the fallback.
 
 ### 4. Cost transparency
-- Token pricing is hard-coded and will drift. Move pricing to a **filterable
-  config** (`apply_filters('avm_provider_pricing', …)`) and surface an
-  **end-of-month forecast** (§16.1) on the dashboard, not just usage-to-date.
-- Add a **hard pre-scan estimate + confirmation** for large manual scans (§16.2).
+- ✅ Filterable pricing + month-end forecast shipped. **Still to do:** a **hard
+  pre-scan estimate + confirmation** for large manual scans (§16.2).
 
 ### 5. Reporting depth
-- The competitor, citation and change reports (§13.3–13.5) are modelled in data
-  but need dedicated screens and a **trend graph** (store daily score snapshots;
-  render with a tiny inline SVG/Chart, no external CDN).
-- **Change detection (§10.6)** is scaffolded in `last_two_for_prompt()` but not
-  yet surfaced as "won/lost this period" — a high-signal, low-effort add.
+- ✅ Change report shipped (§10.6/§13.5). **Still to do:** dedicated competitor
+  & citation report screens (§13.3–13.4) and a **trend graph** from stored daily
+  score snapshots (inline SVG, no external CDN).
 
 ### 6. Testing & CI
-- Add **PHPUnit + WP test suite** (Brain Monkey for units) covering the analysis
-  engine against fixture answers, the scoring maths, and crypto. Wire
-  **PHPCS (WordPress-Extra) + PHPStan** in GitHub Actions. The heuristics
-  especially need golden-file tests so accuracy doesn't regress.
+- ✅ PHPCS + PHPStan + PHPUnit + GitHub Actions scaffolded, with a runnable
+  `CryptoTest`. **Still to do:** **golden-file tests for the analysis engine**
+  against fixture answers (Brain Monkey to stub WP), so detection accuracy can't
+  silently regress — this is the most important test to add next.
 
 ### 7. Security hardening beyond the basics
 - Add a **capability check + rate limit** on manual scans per user (§17.2 notes
@@ -112,9 +124,10 @@ environment) — that is the recommended next step (see below).
 - Add **empty-state coaching** (no prompts yet → wizard CTA) and inline
   provider-error explanations mapped from error codes (§21) to human text.
 
-### Priority order if continuing
-1. LLM-assisted extraction + repeat testing (accuracy is the whole value prop).
-2. Second provider with real citations.
-3. Action Scheduler + atomic job claim.
-4. Trend snapshots + change/competitor/citation report screens.
-5. PHPUnit/PHPCS/PHPStan CI.
+### Priority order for the next round
+1. **LLM-assisted extraction + repeat testing** — accuracy is the whole value
+   prop; this is the biggest remaining lever (needs a live API to validate).
+2. Golden-file tests for the analysis engine (lock in accuracy before iterating).
+3. Provider capability-aware scoring.
+4. Trend snapshots + competitor/citation report screens.
+5. Action Scheduler as primary queue engine.

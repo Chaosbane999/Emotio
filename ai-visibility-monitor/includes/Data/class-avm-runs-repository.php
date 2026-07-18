@@ -56,4 +56,28 @@ class RunsRepository extends Repository {
 			)
 		);
 	}
+
+	/**
+	 * Project end-of-month queries and cost from the current run rate (spec §16.1).
+	 *
+	 * Uses site-local time so the projection lines up with the allowance window.
+	 *
+	 * @return array { queries, cost, day_of_month, days_in_month }
+	 */
+	public function forecast_month() {
+		$since       = gmdate( 'Y-m-01 00:00:00' );
+		$queries     = $this->count_since( $since );
+		$cost        = $this->cost_since( $since );
+		$day         = max( 1, (int) current_time( 'j' ) );
+		$days_in_mon = max( $day, (int) gmdate( 't' ) );
+
+		$per_day = $queries / $day;
+
+		return array(
+			'queries'       => (int) round( $per_day * $days_in_mon ),
+			'cost'          => round( ( $cost / $day ) * $days_in_mon, 4 ),
+			'day_of_month'  => $day,
+			'days_in_month' => $days_in_mon,
+		);
+	}
 }

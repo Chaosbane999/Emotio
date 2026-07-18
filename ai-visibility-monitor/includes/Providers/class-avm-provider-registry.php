@@ -23,6 +23,7 @@ class ProviderRegistry {
 	 */
 	public static function boot() {
 		self::register( new OpenAiProvider() );
+		self::register( new PerplexityProvider() );
 
 		/**
 		 * Allow add-ons to register further providers.

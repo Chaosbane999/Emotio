@@ -36,6 +36,19 @@ class Crypto {
 	}
 
 	/**
+	 * A short, non-secret fingerprint of the current encryption key.
+	 *
+	 * Stored alongside an encrypted secret so we can detect when the WordPress
+	 * salts have changed (which makes previously stored secrets undecryptable)
+	 * without ever exposing the key material itself.
+	 *
+	 * @return string 12-hex-char fingerprint.
+	 */
+	public static function key_fingerprint() {
+		return substr( hash( 'sha256', 'avm-fp|' . self::key() ), 0, 12 );
+	}
+
+	/**
 	 * Encrypt a plaintext secret. Returns a base64 envelope or '' on failure.
 	 *
 	 * @param string $plaintext Secret value.

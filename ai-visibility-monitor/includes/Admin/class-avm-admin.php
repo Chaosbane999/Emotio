@@ -66,6 +66,7 @@ class Admin {
 			'avm-dashboard'      => array( __( 'Dashboard', 'ai-visibility-monitor' ), Capabilities::VIEW, 'render_dashboard' ),
 			'avm-prompts'        => array( __( 'Prompts', 'ai-visibility-monitor' ), Capabilities::VIEW, 'render_prompts' ),
 			'avm-competitors'    => array( __( 'Competitors', 'ai-visibility-monitor' ), Capabilities::MANAGE, 'render_competitors' ),
+			'avm-changes'        => array( __( 'Changes', 'ai-visibility-monitor' ), Capabilities::VIEW, 'render_changes' ),
 			'avm-recommendations'=> array( __( 'Recommendations', 'ai-visibility-monitor' ), Capabilities::VIEW, 'render_recommendations' ),
 			'avm-settings'       => array( __( 'Settings', 'ai-visibility-monitor' ), Capabilities::MANAGE, 'render_settings' ),
 			'avm-diagnostics'    => array( __( 'Diagnostics', 'ai-visibility-monitor' ), Capabilities::MANAGE, 'render_diagnostics' ),
@@ -153,6 +154,12 @@ class Admin {
 		$this->view( 'competitors', compact( 'competitors', 'max' ) );
 	}
 
+	public function render_changes() {
+		$this->guard( Capabilities::VIEW );
+		$changes = ( new \AVM\Services\ChangeService() )->recent( 100 );
+		$this->view( 'changes', compact( 'changes' ) );
+	}
+
 	public function render_recommendations() {
 		$this->guard( Capabilities::VIEW );
 		$recommendations = ( new RecommendationsRepository() )->all( array(), 'created_at', 'DESC', 200 );
@@ -195,6 +202,9 @@ class Admin {
 			'store_raw_answers' => isset( $_POST['store_raw_answers'] ) ? 1 : 0,
 		);
 		Settings::update( $changes );
+
+		// Data & privacy: explicit opt-in for destructive uninstall (spec §17.4).
+		update_option( 'avm_delete_data_on_uninstall', isset( $_POST['delete_data_on_uninstall'] ) ? 1 : 0 );
 
 		// API key: only overwrite when a new value is supplied and not constant-defined.
 		$key = isset( $_POST['api_key'] ) ? trim( (string) wp_unslash( $_POST['api_key'] ) ) : '';

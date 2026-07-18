@@ -17,6 +17,7 @@ class Settings {
 
 	const OPTION      = 'avm_settings';
 	const KEY_OPTION  = 'avm_api_key_enc';
+	const FP_OPTION   = 'avm_api_key_fp';
 
 	/**
 	 * Map of provider slug => wp-config constant name.
@@ -71,12 +72,53 @@ class Settings {
 		if ( ! is_array( $store ) ) {
 			$store = array();
 		}
+		$fingerprints = get_option( self::FP_OPTION, array() );
+		if ( ! is_array( $fingerprints ) ) {
+			$fingerprints = array();
+		}
+
 		if ( '' === trim( (string) $key ) ) {
-			unset( $store[ $provider ] );
+			unset( $store[ $provider ], $fingerprints[ $provider ] );
 		} else {
-			$store[ $provider ] = Crypto::encrypt( trim( $key ) );
+			$store[ $provider ]        = Crypto::encrypt( trim( $key ) );
+			$fingerprints[ $provider ] = Crypto::key_fingerprint();
 		}
 		update_option( self::KEY_OPTION, $store, false );
+		update_option( self::FP_OPTION, $fingerprints, false );
+	}
+
+	/**
+	 * Health of a provider's stored key.
+	 *
+	 * Distinguishes a genuinely absent key from one that exists but can no
+	 * longer be decrypted because the WordPress salts changed (spec §17.1).
+	 *
+	 * @param string $provider Provider slug.
+	 * @return string 'constant' | 'ok' | 'missing' | 'unreadable'.
+	 */
+	public static function key_status( $provider ) {
+		if ( self::key_is_constant( $provider ) ) {
+			return 'constant';
+		}
+
+		$store = get_option( self::KEY_OPTION, array() );
+		if ( ! is_array( $store ) || empty( $store[ $provider ] ) ) {
+			return 'missing';
+		}
+
+		// A stored envelope that decrypts to empty means the key is unreadable.
+		if ( '' === Crypto::decrypt( $store[ $provider ] ) ) {
+			return 'unreadable';
+		}
+
+		// Fingerprint mismatch also signals the salts changed under us.
+		$fingerprints = get_option( self::FP_OPTION, array() );
+		if ( is_array( $fingerprints ) && ! empty( $fingerprints[ $provider ] )
+			&& $fingerprints[ $provider ] !== Crypto::key_fingerprint() ) {
+			return 'unreadable';
+		}
+
+		return 'ok';
 	}
 
 	/**

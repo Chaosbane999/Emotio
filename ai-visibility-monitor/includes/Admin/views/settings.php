@@ -14,11 +14,21 @@ use AVM\Support\Settings;
 $current_provider = $settings['provider'] ?? 'openai';
 $has_key          = Settings::has_api_key( $current_provider );
 $is_constant      = Settings::key_is_constant( $current_provider );
+$key_status       = Settings::key_status( $current_provider );
 $masked           = $has_key ? \AVM\Support\Crypto::mask( Settings::get_api_key( $current_provider ) ) : '';
 ?>
 <div class="wrap avm-wrap">
 	<h1><?php esc_html_e( 'Settings', 'ai-visibility-monitor' ); ?></h1>
 	<?php include __DIR__ . '/_notices.php'; ?>
+
+	<?php if ( 'unreadable' === $key_status ) : ?>
+		<div class="notice notice-error">
+			<p>
+				<strong><?php esc_html_e( 'Your saved API key can no longer be read.', 'ai-visibility-monitor' ); ?></strong>
+				<?php esc_html_e( 'This usually means the WordPress security keys (salts) in wp-config.php changed after the key was saved. Please re-enter your API key below to restore monitoring.', 'ai-visibility-monitor' ); ?>
+			</p>
+		</div>
+	<?php endif; ?>
 
 	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="avm-form">
 		<input type="hidden" name="action" value="avm_save_settings" />
@@ -83,6 +93,20 @@ $masked           = $has_key ? \AVM\Support\Crypto::mask( Settings::get_api_key(
 						<input type="checkbox" name="store_raw_answers" value="1"<?php checked( ! empty( $settings['store_raw_answers'] ) ); ?> />
 						<?php esc_html_e( 'Keep the full AI answer text for each result (uses more storage).', 'ai-visibility-monitor' ); ?>
 					</label>
+				</td>
+			</tr>
+		</table>
+
+		<h2><?php esc_html_e( 'Data & privacy', 'ai-visibility-monitor' ); ?></h2>
+		<table class="form-table" role="presentation">
+			<tr>
+				<th scope="row"><?php esc_html_e( 'On uninstall', 'ai-visibility-monitor' ); ?></th>
+				<td>
+					<label>
+						<input type="checkbox" name="delete_data_on_uninstall" value="1"<?php checked( (int) get_option( 'avm_delete_data_on_uninstall', 0 ) ); ?> />
+						<?php esc_html_e( 'Permanently delete all plugin tables, settings and stored API keys when the plugin is deleted.', 'ai-visibility-monitor' ); ?>
+					</label>
+					<p class="description"><?php esc_html_e( 'Off by default. Deactivating the plugin never deletes data; only deleting it (with this ticked) does.', 'ai-visibility-monitor' ); ?></p>
 				</td>
 			</tr>
 		</table>

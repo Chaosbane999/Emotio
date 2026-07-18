@@ -14,6 +14,7 @@ use AVM\Data\RunsRepository;
 $runs      = new RunsRepository();
 $used      = $runs->count_since( gmdate( 'Y-m-01 00:00:00' ) );
 $cost      = $runs->cost_since( gmdate( 'Y-m-01 00:00:00' ) );
+$forecast  = $runs->forecast_month();
 $allowance = (int) Settings::get( 'monthly_allowance', 200 );
 $provider  = Settings::get( 'provider', 'openai' );
 $has_key   = Settings::has_api_key( $provider );
@@ -31,6 +32,8 @@ $rows = array(
 	__( 'Next queue run', 'ai-visibility-monitor' )        => $queue['next_cron'] ? gmdate( 'Y-m-d H:i', $queue['next_cron'] ) . ' UTC' : __( 'Not scheduled', 'ai-visibility-monitor' ),
 	__( 'Queries this month', 'ai-visibility-monitor' )    => $allowance > 0 ? $used . ' / ' . $allowance : (string) $used,
 	__( 'Estimated cost this month', 'ai-visibility-monitor' ) => '$' . number_format( (float) $cost, 4 ),
+	__( 'Forecast queries (month end)', 'ai-visibility-monitor' ) => $allowance > 0 ? $forecast['queries'] . ' / ' . $allowance : (string) $forecast['queries'],
+	__( 'Forecast cost (month end)', 'ai-visibility-monitor' ) => '$' . number_format( (float) $forecast['cost'], 4 ),
 );
 ?>
 <div class="wrap avm-wrap">

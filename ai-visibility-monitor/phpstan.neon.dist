@@ -1,0 +1,14 @@
+includes:
+	- vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+	level: 5
+	paths:
+		- ai-visibility-monitor.php
+		- includes
+		- uninstall.php
+	bootstrapFiles:
+		- tests/phpstan-bootstrap.php
+	excludePaths:
+		- vendor/*
+		- tests/*
