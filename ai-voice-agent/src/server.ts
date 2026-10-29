@@ -4,22 +4,28 @@ import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import express, { type NextFunction, type Request, type Response } from "express";
 import twilio from "twilio";
-import { WebSocketServer, type WebSocket } from "ws";
+import { WebSocketServer } from "ws";
+import { adminRouter } from "./admin.js";
 import { ClaudeAgent } from "./agent.js";
 import { placeCall } from "./calls.js";
-import { loadConfig, mediaStreamUrl, relayUrl, type Config } from "./config.js";
+import { mediaStreamUrl, missingSettings, relayUrl } from "./config.js";
 import { systemPrompt } from "./prompt.js";
 import { handleMediaStream, openRealtime } from "./realtime.js";
 import { handleRelaySession } from "./relay.js";
+import { SettingsStore } from "./settings.js";
 import { callTwiml } from "./twiml.js";
 
-export function createApp(config: Config) {
+export function createApp(store: SettingsStore) {
   const app = express();
+  // Behind Traefik: use X-Forwarded-For for the client IP (login throttling).
+  app.set("trust proxy", true);
+  app.use("/admin", adminRouter(store));
   app.use(express.urlencoded({ extended: false }));
   app.use(express.json());
 
   /** Reject webhooks that weren't signed by Twilio with our auth token. */
   const twilioOnly = (req: Request, res: Response, next: NextFunction) => {
+    const config = store.config();
     if (!config.VALIDATE_TWILIO_SIGNATURE) return next();
     const ok = twilio.validateRequest(
       config.TWILIO_AUTH_TOKEN,
@@ -32,25 +38,32 @@ export function createApp(config: Config) {
   };
 
   const apiKeyOnly = (req: Request, res: Response, next: NextFunction) => {
-    if (req.header("authorization") !== `Bearer ${config.API_KEY}`) return res.status(401).json({ error: "unauthorized" });
+    const { API_KEY } = store.config();
+    if (!API_KEY) return res.status(503).json({ error: "outbound API key not set (see /admin)" });
+    if (req.header("authorization") !== `Bearer ${API_KEY}`) return res.status(401).json({ error: "unauthorized" });
     next();
   };
 
   app.get("/", (_req, res) => {
-    res.type("text/plain").send(`AI voice agent (${config.VOICE_ENGINE}) is running.`);
+    res.type("text/plain").send(`AI voice agent (${store.config().VOICE_ENGINE}) is running.`);
   });
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true });
+    res.json({ ok: true, ready: missingSettings(store.config()).length === 0 });
   });
 
   // Point your Twilio number's "A call comes in" webhook here.
   app.post("/voice/inbound", twilioOnly, (req, res) => {
-    const twiml = callTwiml(config, { direction: "inbound", from: req.body.From, to: req.body.To });
-    res.type("text/xml").send(twiml);
+    const config = store.config();
+    if (missingSettings(config).length) {
+      const twiml = new twilio.twiml.VoiceResponse();
+      twiml.say({ language: "en-GB" }, "Sorry, this line isn't set up yet. Please try again later.");
+      return res.type("text/xml").send(twiml.toString());
+    }
+    res.type("text/xml").send(callTwiml(config, { direction: "inbound", from: req.body.From, to: req.body.To }));
   });
 
-  // <Connect action>: the relay session ended (agent hung up or caller left).
+  // <Connect action>: the call's AI session ended (agent hung up or caller left).
   app.post("/voice/ended", twilioOnly, (req, res) => {
     console.log(`[voice] call ${req.body.CallSid} ended`, req.body.HandoffData ?? "");
     res.type("text/xml").send(new twilio.twiml.VoiceResponse().hangup().toString());
@@ -66,7 +79,7 @@ export function createApp(config: Config) {
     const { to, purpose } = req.body ?? {};
     if (typeof to !== "string") return res.status(400).json({ error: "`to` is required" });
     try {
-      const call = await placeCall(config, to, typeof purpose === "string" ? purpose : undefined);
+      const call = await placeCall(store.config(), to, typeof purpose === "string" ? purpose : undefined);
       res.status(201).json({ sid: call.sid, status: call.status });
     } catch (err) {
       res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
@@ -76,17 +89,18 @@ export function createApp(config: Config) {
   return app;
 }
 
-export function start(config: Config = loadConfig()) {
-  const server = createServer(createApp(config));
+export function start(store = new SettingsStore()) {
+  const boot = store.config();
+  const server = createServer(createApp(store));
   const wss = new WebSocketServer({ noServer: true });
 
-  // Only the configured engine's socket is served.
-  const socketUrl = config.VOICE_ENGINE === "openai" ? mediaStreamUrl(config) : relayUrl(config);
-  const onSocket = config.VOICE_ENGINE === "openai" ? openaiSessions(config) : claudeSessions(config);
-
   server.on("upgrade", (req, socket, head) => {
+    const config = store.config();
     const url = new URL(req.url ?? "/", "http://localhost");
-    if (url.pathname !== new URL(socketUrl).pathname) return socket.destroy();
+    // Twilio connects to the socket for whichever engine is configured.
+    const socketUrl =
+      url.pathname === "/media-stream" ? mediaStreamUrl(config) : url.pathname === "/relay" ? relayUrl(config) : null;
+    if (!socketUrl) return socket.destroy();
     if (config.VALIDATE_TWILIO_SIGNATURE) {
       const signature = String(req.headers["x-twilio-signature"] ?? "");
       if (!twilio.validateRequest(config.TWILIO_AUTH_TOKEN, signature, socketUrl + url.search, {})) {
@@ -94,27 +108,31 @@ export function start(config: Config = loadConfig()) {
         return socket.destroy();
       }
     }
-    wss.handleUpgrade(req, socket, head, onSocket);
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      if (url.pathname === "/media-stream") {
+        const openai = new OpenAI({ apiKey: config.OPENAI_API_KEY });
+        handleMediaStream(ws, {
+          config,
+          connect: () => openRealtime(openai, config.OPENAI_REALTIME_MODEL, console.error),
+        });
+      } else {
+        const anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
+        handleRelaySession(ws, (call) => new ClaudeAgent(anthropic, config, systemPrompt(config, call)));
+      }
+    });
   });
 
-  server.listen(config.PORT, () => {
-    console.log(`AI voice agent (${config.VOICE_ENGINE}) listening on :${config.PORT}`);
-    console.log(`  Inbound webhook: ${config.PUBLIC_BASE_URL}/voice/inbound`);
-    console.log(`  Call audio:      ${socketUrl}`);
+  server.listen(boot.PORT, () => {
+    console.log(`AI voice agent listening on :${boot.PORT}`);
+    console.log(`  Admin:           ${boot.PUBLIC_BASE_URL}/admin`);
+    console.log(`  Inbound webhook: ${boot.PUBLIC_BASE_URL}/voice/inbound`);
+    if (store.setupCode) {
+      console.log(`\n  First-time setup: open ${boot.PUBLIC_BASE_URL}/admin and enter setup code ${store.setupCode}\n`);
+    }
+    const missing = missingSettings(boot);
+    if (missing.length) console.log(`  Not ready yet. Set in /admin: ${missing.join(", ")}`);
   });
   return server;
-}
-
-function openaiSessions(config: Config) {
-  const openai = new OpenAI({ apiKey: config.OPENAI_API_KEY });
-  return (ws: WebSocket) =>
-    handleMediaStream(ws, { config, connect: () => openRealtime(openai, config.OPENAI_REALTIME_MODEL, console.error) });
-}
-
-function claudeSessions(config: Config) {
-  const anthropic = new Anthropic();
-  return (ws: WebSocket) =>
-    handleRelaySession(ws, (call) => new ClaudeAgent(anthropic, config, systemPrompt(config, call)));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) start();

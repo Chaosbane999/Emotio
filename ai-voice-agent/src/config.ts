@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { z } from "zod";
 
-const Env = z
+export const Env = z
   .object({
     // "openai": speech-to-speech with OpenAI Realtime (the ChatGPT-style voice).
     // "claude": Claude for the conversation + ElevenLabs voice via ConversationRelay.
@@ -20,14 +20,20 @@ const Env = z
     CLAUDE_MODEL: z.string().default("claude-opus-5-5"),
     CLAUDE_EFFORT: z.enum(["low", "medium", "high", "xhigh", "max"]).default("low"),
 
-    TWILIO_ACCOUNT_SID: z.string().min(1),
-    TWILIO_AUTH_TOKEN: z.string().min(1),
-    TWILIO_PHONE_NUMBER: z.string().min(1),
+    // Keys and phone settings are normally entered in the admin page (/admin) and
+    // saved under DATA_DIR; env vars only provide defaults.
+    TWILIO_ACCOUNT_SID: z.string().default(""),
+    TWILIO_AUTH_TOKEN: z.string().default(""),
+    TWILIO_PHONE_NUMBER: z.string().default(""),
 
     PUBLIC_BASE_URL: z.url().transform((u) => u.replace(/\/+$/, "")),
     PORT: z.coerce.number().default(8080),
 
-    API_KEY: z.string().min(8),
+    // Bearer key for POST /calls; empty disables the endpoint
+    API_KEY: z.string().default(""),
+    DATA_DIR: z.string().default("data"),
+    // Optional: preset the admin password instead of using the first-run setup code
+    ADMIN_PASSWORD: z.string().default(""),
     VALIDATE_TWILIO_SIGNATURE: z
       .enum(["true", "false"])
       .default("true")
@@ -46,11 +52,6 @@ const Env = z
     TTS_STABILITY: z.coerce.number().min(0).max(1).default(0.45),
     TTS_SIMILARITY: z.coerce.number().min(0).max(1).default(0.8),
     LANGUAGE: z.string().default("en-GB"),
-  })
-  .superRefine((env, ctx) => {
-    if (env.VOICE_ENGINE === "openai" && !env.OPENAI_API_KEY) {
-      ctx.addIssue({ code: "custom", path: ["OPENAI_API_KEY"], message: "required when VOICE_ENGINE=openai" });
-    }
   });
 
 export type Config = z.infer<typeof Env>;
@@ -62,6 +63,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error(`Invalid configuration (see .env.example):\n${issues}`);
   }
   return parsed.data;
+}
+
+/** Settings still needed before calls can work, as human-readable labels. */
+export function missingSettings(config: Config): string[] {
+  const missing: string[] = [];
+  if (!config.TWILIO_ACCOUNT_SID) missing.push("Twilio Account SID");
+  if (!config.TWILIO_AUTH_TOKEN) missing.push("Twilio Auth Token");
+  if (!config.TWILIO_PHONE_NUMBER) missing.push("Twilio phone number");
+  if (config.VOICE_ENGINE === "openai" && !config.OPENAI_API_KEY) missing.push("OpenAI API key");
+  if (config.VOICE_ENGINE === "claude" && !config.ANTHROPIC_API_KEY) missing.push("Anthropic API key");
+  return missing;
 }
 
 /** wss:// URL Twilio ConversationRelay connects to. */

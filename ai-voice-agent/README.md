@@ -39,8 +39,8 @@ Choose this for Claude's reasoning, or to use any ElevenLabs voice.
    npm install
    cp .env.example .env
    ```
-2. **Fill in `.env`**: your OpenAI API key (or Anthropic key for the Claude engine), your
-   Twilio Account SID and Auth Token, and a Twilio UK phone number with Voice enabled.
+2. **Set `PUBLIC_BASE_URL` in `.env`.** Keys can go in `.env` too, or be entered later at
+   `/admin` (see below).
 3. **Expose the server publicly** (Twilio has to reach it), e.g. `ngrok http 8080`, and
    set `PUBLIC_BASE_URL` to the `https://…` URL.
 4. **Run it:**
@@ -103,25 +103,45 @@ going silent.
 | `WS /relay` | Twilio | ConversationRelay text session (`claude` engine) |
 | `POST /voice/ended` | Twilio | Relay session finished → hang up |
 | `POST /voice/status` | Twilio | Outbound call status updates (logged) |
-| `POST /calls` | You | Place an outbound call (`Authorization: Bearer $API_KEY`) |
+| `GET /admin` | You | Admin settings: keys, voice, agent, test call |
+| `POST /calls` | You | Place an outbound call (`Authorization: Bearer <key from /admin>`) |
 | `GET /health` | Anyone | Liveness check |
+
+## Admin settings
+
+Keys and settings are managed at **`/admin`** (e.g. https://voice.emotioflow.com/admin),
+not in env vars or files you edit:
+
+- Twilio Account SID, Auth Token and phone number
+- OpenAI API key and voice, or the Anthropic key for the Claude engine
+- Agent name, greeting and instructions
+- The outbound-calling API key (one click generates it)
+- A **test call** button
+
+**First run:** the server prints a one-time **setup code** in its logs. Open `/admin`, enter
+the code, and choose an admin password. Or set `ADMIN_PASSWORD` to skip the code.
+
+Settings are saved in `DATA_DIR/settings.json`, readable only by the app (file mode 0600),
+on a Docker volume so they survive redeploys. Secrets are never sent back to the browser:
+the form only shows their last four characters. The admin login uses a signed HttpOnly,
+SameSite=Strict cookie, blocks cross-site form posts, and locks out an IP for 15 minutes
+after 10 failed attempts.
 
 ## Deploying to voice.emotioflow.com
 
-The app ships with a `Dockerfile` and a `docker-compose.yml` for the Hostinger VPS, which
-runs Traefik for HTTPS. WebSockets pass through Traefik with no extra setup.
+The app ships with a `Dockerfile` and a `docker-compose.yml` for the Hostinger VPS (HTTPS
+via Traefik; WebSockets pass straight through). **The deploy needs no secrets.**
 
 1. **Code:** push this folder to a **public** repo `agiadaccount-oss/ai-voice-agent`.
    The compose file builds straight from it, and it contains no secrets.
-2. **DNS:** in hPanel, go to Domains → emotioflow.com → DNS and add an A record:
+2. **Subdomain:** in hPanel, go to Domains → emotioflow.com → DNS and add an A record:
    `voice` → `145.223.88.132`.
 3. **Deploy:** in hPanel Docker Manager, choose Compose → Deploy with .yaml, name the
-   project `ai-voice-agent`, and paste `docker-compose.yml`. Put the secrets
-   (`OPENAI_API_KEY`, `TWILIO_*`, `API_KEY`) in Docker Manager's environment settings, or
-   in place of the `${…}` placeholders in the pasted YAML. Never commit them.
-4. **Check:** `https://voice.emotioflow.com/` should say *AI voice agent (openai) is running.*
+   project `ai-voice-agent`, and paste `docker-compose.yml`.
+4. **Set up:** copy the setup code from Docker Manager → Logs, open
+   https://voice.emotioflow.com/admin, create the admin password, and enter your keys.
 5. **Twilio:** set your number's *A call comes in* webhook to
-   `https://voice.emotioflow.com/voice/inbound` (HTTP POST).
+   `https://voice.emotioflow.com/voice/inbound` (HTTP POST). The admin page shows this URL.
 
 ## Development
 
@@ -136,6 +156,8 @@ npm run build && npm start
 ```
 src/
   server.ts   HTTP routes + WebSocket upgrade (entry point)
+  admin.ts    /admin pages: setup, login, settings form, test call
+  settings.ts Saved settings (DATA_DIR/settings.json) layered over env vars
   realtime.ts OpenAI engine: Twilio Media Stream ⇄ OpenAI Realtime bridge, barge-in, end_call
   relay.ts    Claude engine: ConversationRelay protocol (setup / prompt / interrupt / dtmf)
   agent.ts    Claude engine: streaming replies, interruptions, end_call tool

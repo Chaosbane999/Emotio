@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { isE164 } from "../src/calls.js";
-import { loadConfig, relayUrl, ttsVoice } from "../src/config.js";
+import { loadConfig, missingSettings, relayUrl, ttsVoice } from "../src/config.js";
 import { systemPrompt } from "../src/prompt.js";
 import { callTwiml, conversationRelayTwiml } from "../src/twiml.js";
 import { config } from "./helpers.js";
@@ -54,9 +54,9 @@ test("Claude engine uses ConversationRelay", () => {
   assert.match(callTwiml({ ...config, VOICE_ENGINE: "claude" }, { direction: "inbound" }), /<ConversationRelay /);
 });
 
-test("OpenAI engine requires an OpenAI key", () => {
-  const { OPENAI_API_KEY, ...rest } = config as Record<string, unknown>;
-  const env = Object.fromEntries(Object.entries(rest).map(([k, v]) => [k, String(v)]));
-  assert.throws(() => loadConfig({ ...env, VOICE_ENGINE: "openai" }), /OPENAI_API_KEY/);
-  assert.doesNotThrow(() => loadConfig({ ...env, VOICE_ENGINE: "claude" }));
+test("missing settings are reported for the chosen engine", () => {
+  assert.deepEqual(missingSettings(config), []);
+  const bare = loadConfig({ PUBLIC_BASE_URL: "https://x.example.com" });
+  assert.deepEqual(missingSettings(bare), ["Twilio Account SID", "Twilio Auth Token", "Twilio phone number", "OpenAI API key"]);
+  assert.deepEqual(missingSettings({ ...bare, VOICE_ENGINE: "claude" }).at(-1), "Anthropic API key");
 });
