@@ -36,6 +36,10 @@ export function createApp(config: Config) {
     next();
   };
 
+  app.get("/", (_req, res) => {
+    res.type("text/plain").send(`AI voice agent (${config.VOICE_ENGINE}) is running.`);
+  });
+
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
   });

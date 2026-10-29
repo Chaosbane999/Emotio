@@ -106,6 +106,23 @@ going silent.
 | `POST /calls` | You | Place an outbound call (`Authorization: Bearer $API_KEY`) |
 | `GET /health` | Anyone | Liveness check |
 
+## Deploying to voice.emotioflow.com
+
+The app ships with a `Dockerfile` and a `docker-compose.yml` for the Hostinger VPS, which
+runs Traefik for HTTPS. WebSockets pass through Traefik with no extra setup.
+
+1. **Code:** push this folder to a **public** repo `agiadaccount-oss/ai-voice-agent`.
+   The compose file builds straight from it, and it contains no secrets.
+2. **DNS:** in hPanel, go to Domains → emotioflow.com → DNS and add an A record:
+   `voice` → `145.223.88.132`.
+3. **Deploy:** in hPanel Docker Manager, choose Compose → Deploy with .yaml, name the
+   project `ai-voice-agent`, and paste `docker-compose.yml`. Put the secrets
+   (`OPENAI_API_KEY`, `TWILIO_*`, `API_KEY`) in Docker Manager's environment settings, or
+   in place of the `${…}` placeholders in the pasted YAML. Never commit them.
+4. **Check:** `https://voice.emotioflow.com/` should say *AI voice agent (openai) is running.*
+5. **Twilio:** set your number's *A call comes in* webhook to
+   `https://voice.emotioflow.com/voice/inbound` (HTTP POST).
+
 ## Development
 
 ```bash

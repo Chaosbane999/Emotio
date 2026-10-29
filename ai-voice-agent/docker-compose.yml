@@ -1,0 +1,28 @@
+# Deploys to https://voice.emotioflow.com behind the VPS's Traefik.
+# Secrets are NOT stored here: set them in Hostinger Docker Manager (or a .env
+# file next to this compose file on the VPS). No `networks:` section — Traefik
+# runs in host network mode on this VPS.
+services:
+  ai-voice-agent:
+    build: https://github.com/agiadaccount-oss/ai-voice-agent.git
+    labels:
+      - traefik.enable=true
+      - "traefik.http.routers.ai-voice-agent.rule=Host(`voice.emotioflow.com`)"
+      - traefik.http.routers.ai-voice-agent.entrypoints=websecure
+      - traefik.http.routers.ai-voice-agent.tls.certresolver=letsencrypt
+      - traefik.http.services.ai-voice-agent.loadbalancer.server.port=8080
+    environment:
+      PUBLIC_BASE_URL: https://voice.emotioflow.com
+      PORT: "8080"
+      VOICE_ENGINE: ${VOICE_ENGINE:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_VOICE: ${OPENAI_VOICE:-marin}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
+      API_KEY: ${API_KEY}
+      AGENT_NAME: ${AGENT_NAME:-Ava}
+      AGENT_GREETING: ${AGENT_GREETING:-Hello, this is Ava, an AI assistant. How can I help you today?}
+      AGENT_INSTRUCTIONS: ${AGENT_INSTRUCTIONS:-}
+    restart: unless-stopped
