@@ -19,7 +19,7 @@ test("inbound TwiML greets and connects to the relay", () => {
 
 test("ElevenLabs voice includes model and voice settings", () => {
   const xml = conversationRelayTwiml(config, { direction: "inbound" });
-  assert.match(xml, /voice="EXAVITQu4vr4xnSDxMaL-flash_v2_5-1\.00_0\.45_0\.80"/);
+  assert.match(xml, /voice="EXAVITQu4vr4xnSDxMaL-flash_v2_5-1\.0_0\.45_0\.8"/);
   assert.equal(ttsVoice({ ...config, TTS_PROVIDER: "Google", TTS_VOICE: "en-US-Journey-O" }), "en-US-Journey-O");
 });
 
