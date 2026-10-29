@@ -1,0 +1,13 @@
+// Usage: npm run call -- +15555550123 "Confirm tomorrow's 3pm appointment"
+// The server (npm run dev) must be running and reachable at PUBLIC_BASE_URL.
+import { placeCall } from "../calls.js";
+import { loadConfig } from "../config.js";
+
+const [to, ...purpose] = process.argv.slice(2);
+if (!to) {
+  console.error('Usage: npm run call -- <+E164 number> ["purpose of the call"]');
+  process.exit(1);
+}
+
+const call = await placeCall(loadConfig(), to, purpose.join(" ") || undefined);
+console.log(`Calling ${to} — call SID ${call.sid} (${call.status})`);
