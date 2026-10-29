@@ -1,15 +1,17 @@
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import express, { type NextFunction, type Request, type Response } from "express";
 import twilio from "twilio";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, type WebSocket } from "ws";
 import { ClaudeAgent } from "./agent.js";
 import { placeCall } from "./calls.js";
-import { loadConfig, relayUrl, type Config } from "./config.js";
+import { loadConfig, mediaStreamUrl, relayUrl, type Config } from "./config.js";
 import { systemPrompt } from "./prompt.js";
+import { handleMediaStream, openRealtime } from "./realtime.js";
 import { handleRelaySession } from "./relay.js";
-import { conversationRelayTwiml } from "./twiml.js";
+import { callTwiml } from "./twiml.js";
 
 export function createApp(config: Config) {
   const app = express();
@@ -39,8 +41,9 @@ export function createApp(config: Config) {
   });
 
   // Point your Twilio number's "A call comes in" webhook here.
-  app.post("/voice/inbound", twilioOnly, (_req, res) => {
-    res.type("text/xml").send(conversationRelayTwiml(config, { direction: "inbound" }));
+  app.post("/voice/inbound", twilioOnly, (req, res) => {
+    const twiml = callTwiml(config, { direction: "inbound", from: req.body.From, to: req.body.To });
+    res.type("text/xml").send(twiml);
   });
 
   // <Connect action>: the relay session ended (agent hung up or caller left).
@@ -70,32 +73,44 @@ export function createApp(config: Config) {
 }
 
 export function start(config: Config = loadConfig()) {
-  const anthropic = new Anthropic();
   const server = createServer(createApp(config));
   const wss = new WebSocketServer({ noServer: true });
 
+  // Only the configured engine's socket is served.
+  const socketUrl = config.VOICE_ENGINE === "openai" ? mediaStreamUrl(config) : relayUrl(config);
+  const onSocket = config.VOICE_ENGINE === "openai" ? openaiSessions(config) : claudeSessions(config);
+
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url ?? "/", "http://localhost");
-    if (url.pathname !== "/relay") return socket.destroy();
+    if (url.pathname !== new URL(socketUrl).pathname) return socket.destroy();
     if (config.VALIDATE_TWILIO_SIGNATURE) {
       const signature = String(req.headers["x-twilio-signature"] ?? "");
-      const fullUrl = relayUrl(config) + url.search;
-      if (!twilio.validateRequest(config.TWILIO_AUTH_TOKEN, signature, fullUrl, {})) {
+      if (!twilio.validateRequest(config.TWILIO_AUTH_TOKEN, signature, socketUrl + url.search, {})) {
         socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
         return socket.destroy();
       }
     }
-    wss.handleUpgrade(req, socket, head, (ws) => {
-      handleRelaySession(ws, (call) => new ClaudeAgent(anthropic, config, systemPrompt(config, call)));
-    });
+    wss.handleUpgrade(req, socket, head, onSocket);
   });
 
   server.listen(config.PORT, () => {
-    console.log(`AI voice agent listening on :${config.PORT}`);
+    console.log(`AI voice agent (${config.VOICE_ENGINE}) listening on :${config.PORT}`);
     console.log(`  Inbound webhook: ${config.PUBLIC_BASE_URL}/voice/inbound`);
-    console.log(`  Relay socket:    ${relayUrl(config)}`);
+    console.log(`  Call audio:      ${socketUrl}`);
   });
   return server;
+}
+
+function openaiSessions(config: Config) {
+  const openai = new OpenAI({ apiKey: config.OPENAI_API_KEY });
+  return (ws: WebSocket) =>
+    handleMediaStream(ws, { config, connect: () => openRealtime(openai, config.OPENAI_REALTIME_MODEL, console.error) });
+}
+
+function claudeSessions(config: Config) {
+  const anthropic = new Anthropic();
+  return (ws: WebSocket) =>
+    handleRelaySession(ws, (call) => new ClaudeAgent(anthropic, config, systemPrompt(config, call)));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) start();

@@ -7,6 +7,7 @@ export const config = loadConfig({
   TWILIO_PHONE_NUMBER: "+15555550100",
   PUBLIC_BASE_URL: "https://agent.example.com/",
   API_KEY: "test-api-key",
+  OPENAI_API_KEY: "sk-test",
 });
 
 /** Minimal stand-in for a ws WebSocket. */
@@ -14,6 +15,11 @@ export class FakeSocket extends EventEmitter {
   readonly OPEN = 1;
   readyState = 1;
   sent: any[] = [];
+  closed = false;
+  close() {
+    this.closed = true;
+    this.readyState = 3;
+  }
   send(data: string) {
     this.sent.push(JSON.parse(data));
   }

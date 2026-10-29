@@ -1,28 +1,36 @@
 # AI Voice Agent
 
-A phone agent that **answers inbound calls** and **places outbound calls**, powered by
-Claude and Twilio.
+A phone agent that **answers inbound calls** and **places outbound calls**, built on Twilio
+and set up for the UK. It has two engines; choose one with `VOICE_ENGINE`.
+
+### `openai` (default): speech-to-speech, the ChatGPT-style voice
 
 ```
- Caller ⇄ Twilio phone number ⇄ ConversationRelay (speech-to-text + text-to-speech)
-                                        │  WebSocket (/relay)
-                                        ▼
-                              this server ⇄ Claude (streaming)
+ Caller ⇄ Twilio number ⇄ Media Stream (raw call audio, /media-stream) ⇄ this server ⇄ OpenAI Realtime
 ```
 
-Twilio's [ConversationRelay](https://www.twilio.com/docs/voice/conversationrelay)
-does the audio: it transcribes the caller, sends us text over a WebSocket, and speaks
-our reply tokens as they stream back from Claude. That keeps latency low and the code
-small. There's no audio handling in this repo.
+The OpenAI Realtime model (`gpt-realtime-2.1`) hears the caller's voice and replies in its
+own voice, with no separate speech-to-text and text-to-speech steps. That gives the most
+natural conversation: it picks up tone, responds quickly, and stops the moment you talk
+over it. Call audio passes straight through in the phone's own format, with no conversion.
+
+### `claude`: Claude for the conversation, ElevenLabs for the voice
+
+```
+ Caller ⇄ Twilio number ⇄ ConversationRelay (speech-to-text + ElevenLabs voice) ⇄ /relay ⇄ Claude
+```
+
+Choose this for Claude's reasoning, or to use any ElevenLabs voice.
 
 ## Features
 
 - **Inbound calls**: point a Twilio number at `/voice/inbound` and the agent greets callers.
 - **Outbound calls**: `POST /calls` or `npm run call`, with an optional *purpose* the agent works toward.
-- **Barge-in**: callers can interrupt. The agent stops talking and knows what the caller actually heard.
-- **Hang-up tool**: Claude ends the call itself (`end_call`) once the conversation is done.
+- **Interruptions**: talk over the agent and it stops immediately. Playback is cut, and the
+  model is told exactly how much of its reply you heard.
+- **Hang-up tool**: the agent ends the call itself (`end_call`) once it has said goodbye.
 - **Touch-tone (DTMF)** key presses are passed to the agent.
-- **Security**: Twilio signature validation on webhooks and the WebSocket, plus a bearer key on `/calls`.
+- **Security**: Twilio signature validation on webhooks and the audio WebSocket, plus a bearer key on `/calls`.
 
 ## Setup
 
@@ -31,8 +39,8 @@ small. There's no audio handling in this repo.
    npm install
    cp .env.example .env
    ```
-2. **Fill in `.env`**: your Anthropic API key, Twilio Account SID / Auth Token, and a
-   Twilio phone number with Voice enabled.
+2. **Fill in `.env`**: your OpenAI API key (or Anthropic key for the Claude engine), your
+   Twilio Account SID and Auth Token, and a Twilio UK phone number with Voice enabled.
 3. **Expose the server publicly** (Twilio has to reach it), e.g. `ngrok http 8080`, and
    set `PUBLIC_BASE_URL` to the `https://…` URL.
 4. **Run it:**
@@ -56,28 +64,43 @@ small. There's no audio handling in this repo.
 
 | Env var | What it does |
 |---|---|
-| `AGENT_NAME`, `AGENT_GREETING` | Persona and the first line on inbound calls |
+| `VOICE_ENGINE` | `openai` (speech-to-speech) or `claude` (Claude + ElevenLabs) |
+| `AGENT_NAME`, `AGENT_GREETING` | Persona and the opening line on inbound calls |
 | `AGENT_INSTRUCTIONS` | Extra instructions (business info, policies, what to collect) |
-| `CLAUDE_MODEL` | Defaults to `claude-opus-5-5` |
-| `CLAUDE_EFFORT` | `low` (default) keeps replies fast on a live call |
+
+**OpenAI engine**
+
+| Env var | What it does |
+|---|---|
+| `OPENAI_REALTIME_MODEL` | `gpt-realtime-2.1` (default) or `gpt-realtime-2.1-mini` (cheaper) |
+| `OPENAI_VOICE` | `marin` (female, default) or `cedar` (male) sound the most natural. Others: `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse` |
+| `OPENAI_VOICE_SPEED` | 0.25–1.5 |
+| `OPENAI_TURN_DETECTION` | `semantic_vad` waits until the caller has finished their thought; `server_vad` reacts to silence |
+| `OPENAI_REASONING_EFFORT` | `low` keeps replies quick; raise it for harder conversations |
+
+The British accent comes from the instructions in `src/prompt.ts`, not from the voice
+itself, so try a few voices to find the one that sounds best.
+
+**Claude engine**
+
+| Env var | What it does |
+|---|---|
+| `CLAUDE_MODEL`, `CLAUDE_EFFORT` | Defaults: `claude-opus-5-5`, `low` |
 | `TTS_VOICE`, `TTS_MODEL` | ElevenLabs voice ID and model (default: "Alice", British, on Flash v2.5) |
 | `TTS_SPEED`, `TTS_STABILITY`, `TTS_SIMILARITY` | Voice tuning; lower stability sounds more expressive |
 | `TTS_PROVIDER`, `LANGUAGE` | Switch to Google/Amazon voices, or change language |
 
-The system prompt lives in `src/prompt.ts`. To give the agent more abilities (book
-appointments, look up orders, transfer to a human), add tools next to `end_call` in
-`src/agent.ts`.
-
-The agent turns on Anthropic's server-side refusal fallback
-(`fallbacks: "default"`), so a declined request is retried on a fallback model
-instead of going silent. Remove it from `src/agent.ts` if you don't want that.
+The Claude engine turns on Anthropic's server-side refusal fallback
+(`fallbacks: "default"`), so a declined request is retried on a fallback model instead of
+going silent.
 
 ## Endpoints
 
 | Route | Caller | Purpose |
 |---|---|---|
 | `POST /voice/inbound` | Twilio | Incoming-call webhook → ConversationRelay TwiML |
-| `WS /relay` | Twilio | ConversationRelay session (the conversation itself) |
+| `WS /media-stream` | Twilio | Call audio, bridged to OpenAI Realtime (`openai` engine) |
+| `WS /relay` | Twilio | ConversationRelay text session (`claude` engine) |
 | `POST /voice/ended` | Twilio | Relay session finished → hang up |
 | `POST /voice/status` | Twilio | Outbound call status updates (logged) |
 | `POST /calls` | You | Place an outbound call (`Authorization: Bearer $API_KEY`) |
@@ -87,7 +110,7 @@ instead of going silent. Remove it from `src/agent.ts` if you don't want that.
 
 ```bash
 npm run typecheck
-npm test        # TwiML, prompt, and relay protocol tests (no network needed)
+npm test        # TwiML, config, and both engines' call protocols (no network needed)
 npm run build && npm start
 ```
 
@@ -96,10 +119,11 @@ npm run build && npm start
 ```
 src/
   server.ts   HTTP routes + WebSocket upgrade (entry point)
-  relay.ts    ConversationRelay protocol: setup / prompt / interrupt / dtmf → agent
-  agent.ts    Claude conversation: streaming replies, interruptions, end_call tool
-  prompt.ts   System prompt for voice
-  twiml.ts    TwiML that connects a call to ConversationRelay
+  realtime.ts OpenAI engine: Twilio Media Stream ⇄ OpenAI Realtime bridge, barge-in, end_call
+  relay.ts    Claude engine: ConversationRelay protocol (setup / prompt / interrupt / dtmf)
+  agent.ts    Claude engine: streaming replies, interruptions, end_call tool
+  prompt.ts   System prompt (text mode for Claude, speech mode for OpenAI)
+  twiml.ts    TwiML that connects a call to the configured engine
   calls.ts    Outbound calls via the Twilio REST API
   config.ts   Env var validation
   cli/call.ts `npm run call` helper
@@ -124,8 +148,8 @@ make outbound calls at scale.
   uses `TWILIO_PHONE_NUMBER`, so don't withhold it.
 - **"Don't call me again" must be honoured.** The agent confirms and hangs up. Add the
   number to your own suppression list (not yet automated here).
-- **UK GDPR.** Call transcripts pass through Twilio (speech-to-text) and Anthropic
-  (Claude). Name them as processors in your privacy notice, have a lawful basis, and
+- **UK GDPR.** Call audio passes through Twilio and OpenAI (or, on the Claude engine,
+  Twilio's speech-to-text and Anthropic). Name them as processors in your privacy notice, have a lawful basis, and
   tell callers how their data is used. This app does not record audio or store
   transcripts. If you add recording, tell callers at the start of the call.
 - **Ofcom persistent-misuse rules** apply to abandoned and silent calls. The agent speaks
@@ -133,5 +157,6 @@ make outbound calls at scale.
 
 ## Other notes
 
-- The agent waits ~70 ms per spoken character before hanging up so its goodbye isn't
-  cut off (`msPerChar` in `src/relay.ts`).
+- On the OpenAI engine, the agent hangs up once Twilio confirms the goodbye has finished
+  playing. On the Claude engine, it waits ~70 ms per spoken character (`msPerChar` in
+  `src/relay.ts`).

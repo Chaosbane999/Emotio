@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { isE164 } from "../src/calls.js";
-import { relayUrl, ttsVoice } from "../src/config.js";
+import { loadConfig, relayUrl, ttsVoice } from "../src/config.js";
 import { systemPrompt } from "../src/prompt.js";
-import { conversationRelayTwiml } from "../src/twiml.js";
+import { callTwiml, conversationRelayTwiml } from "../src/twiml.js";
 import { config } from "./helpers.js";
 
 test("relay URL is wss and trailing slash is stripped", () => {
@@ -42,4 +42,21 @@ test("E.164 validation", () => {
   assert.ok(!isE164("07700900123"));
   assert.ok(!isE164("5555550123"));
   assert.ok(!isE164("+0123456789"));
+});
+
+test("OpenAI engine connects the call audio to /media-stream", () => {
+  const xml = callTwiml(config, { direction: "inbound", from: "+447700900001", to: "+447700900002" });
+  assert.match(xml, /<Connect action="https:\/\/agent\.example\.com\/voice\/ended"><Stream url="wss:\/\/agent\.example\.com\/media-stream">/);
+  assert.match(xml, /<Parameter name="from" value="\+447700900001"\/>/);
+});
+
+test("Claude engine uses ConversationRelay", () => {
+  assert.match(callTwiml({ ...config, VOICE_ENGINE: "claude" }, { direction: "inbound" }), /<ConversationRelay /);
+});
+
+test("OpenAI engine requires an OpenAI key", () => {
+  const { OPENAI_API_KEY, ...rest } = config as Record<string, unknown>;
+  const env = Object.fromEntries(Object.entries(rest).map(([k, v]) => [k, String(v)]));
+  assert.throws(() => loadConfig({ ...env, VOICE_ENGINE: "openai" }), /OPENAI_API_KEY/);
+  assert.doesNotThrow(() => loadConfig({ ...env, VOICE_ENGINE: "claude" }));
 });

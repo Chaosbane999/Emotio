@@ -1,6 +1,6 @@
 import twilio from "twilio";
 import type { Config } from "./config.js";
-import { conversationRelayTwiml } from "./twiml.js";
+import { callTwiml } from "./twiml.js";
 
 const E164 = /^\+[1-9]\d{6,14}$/;
 
@@ -15,7 +15,7 @@ export async function placeCall(config: Config, to: string, purpose?: string) {
   return client.calls.create({
     to,
     from: config.TWILIO_PHONE_NUMBER,
-    twiml: conversationRelayTwiml(config, { direction: "outbound", purpose }),
+    twiml: callTwiml(config, { direction: "outbound", from: config.TWILIO_PHONE_NUMBER, to, purpose }),
     statusCallback: `${config.PUBLIC_BASE_URL}/voice/status`,
     statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
   });
