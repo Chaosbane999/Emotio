@@ -1,5 +1,5 @@
 import twilio from "twilio";
-import { relayUrl, type Config } from "./config.js";
+import { relayUrl, ttsVoice, type Config } from "./config.js";
 
 export interface CallContext {
   direction: "inbound" | "outbound";
@@ -16,6 +16,7 @@ export function conversationRelayTwiml(config: Config, ctx: CallContext): string
   const connect = response.connect({
     action: `${config.PUBLIC_BASE_URL}/voice/ended`,
   });
+  const voice = ttsVoice(config);
   const relay = connect.conversationRelay({
     url: relayUrl(config),
     welcomeGreeting: ctx.direction === "inbound" ? config.AGENT_GREETING : undefined,
@@ -23,7 +24,7 @@ export function conversationRelayTwiml(config: Config, ctx: CallContext): string
     interruptible: "any",
     language: config.LANGUAGE,
     ttsProvider: config.TTS_PROVIDER,
-    ...(config.TTS_VOICE ? { voice: config.TTS_VOICE } : {}),
+    ...(voice ? { voice } : {}),
   });
   relay.parameter({ name: "direction", value: ctx.direction });
   if (ctx.purpose) relay.parameter({ name: "purpose", value: ctx.purpose });

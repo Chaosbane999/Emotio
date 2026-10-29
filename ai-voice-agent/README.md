@@ -60,7 +60,9 @@ small. There's no audio handling in this repo.
 | `AGENT_INSTRUCTIONS` | Extra instructions (business info, policies, what to collect) |
 | `CLAUDE_MODEL` | Defaults to `claude-opus-5-5` |
 | `CLAUDE_EFFORT` | `low` (default) keeps replies fast on a live call |
-| `TTS_PROVIDER`, `TTS_VOICE`, `LANGUAGE` | ConversationRelay voice settings |
+| `TTS_VOICE`, `TTS_MODEL` | ElevenLabs voice ID and model (default: "Sarah" on Flash v2.5) |
+| `TTS_SPEED`, `TTS_STABILITY`, `TTS_SIMILARITY` | Voice tuning; lower stability sounds more expressive |
+| `TTS_PROVIDER`, `LANGUAGE` | Switch to Google/Amazon voices, or change language |
 
 The system prompt lives in `src/prompt.ts`. To give the agent more abilities (book
 appointments, look up orders, transfer to a human), add tools next to `end_call` in

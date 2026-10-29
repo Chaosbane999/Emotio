@@ -23,7 +23,14 @@ const Env = z.object({
   AGENT_GREETING: z.string().default("Hi, this is Ava, an AI assistant. How can I help you today?"),
   AGENT_INSTRUCTIONS: z.string().default(""),
   TTS_PROVIDER: z.string().default("ElevenLabs"),
-  TTS_VOICE: z.string().default(""),
+  // ElevenLabs voice ID. Default: "Sarah", a warm, natural conversational voice.
+  TTS_VOICE: z.string().default("EXAVITQu4vr4xnSDxMaL"),
+  // ElevenLabs model: flash_v2_5 (fastest), turbo_v2_5 (a bit richer, slightly slower)
+  TTS_MODEL: z.string().default("flash_v2_5"),
+  // Speed 0.7-1.2; stability/similarity 0.0-1.0 (lower stability = more expressive)
+  TTS_SPEED: z.coerce.number().min(0.7).max(1.2).default(1.0),
+  TTS_STABILITY: z.coerce.number().min(0).max(1).default(0.45),
+  TTS_SIMILARITY: z.coerce.number().min(0).max(1).default(0.8),
   LANGUAGE: z.string().default("en-US"),
 });
 
@@ -41,4 +48,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 /** wss:// URL Twilio ConversationRelay connects to. */
 export function relayUrl(config: Config): string {
   return config.PUBLIC_BASE_URL.replace(/^http/, "ws") + "/relay";
+}
+
+/**
+ * ConversationRelay `voice` attribute. ElevenLabs takes
+ * "<voiceId>-<model>-<speed>_<stability>_<similarity>"; other providers take the voice name as-is.
+ */
+export function ttsVoice(config: Config): string | undefined {
+  if (!config.TTS_VOICE) return undefined;
+  if (config.TTS_PROVIDER.toLowerCase() !== "elevenlabs") return config.TTS_VOICE;
+  const settings = [config.TTS_SPEED, config.TTS_STABILITY, config.TTS_SIMILARITY].map(formatSetting).join("_");
+  return [config.TTS_VOICE, config.TTS_MODEL, settings].filter(Boolean).join("-");
+}
+
+/** 1 -> "1.0", 0.45 -> "0.45", 0.8 -> "0.8" (the format Twilio's docs use). */
+function formatSetting(n: number): string {
+  const s = n.toFixed(2).replace(/0+$/, "");
+  return s.endsWith(".") ? s + "0" : s;
 }
