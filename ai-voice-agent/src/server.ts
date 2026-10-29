@@ -54,7 +54,7 @@ export function createApp(config: Config) {
     res.sendStatus(204);
   });
 
-  // Place an outbound call: POST /calls {"to": "+15555550123", "purpose": "..."}
+  // Place an outbound call: POST /calls {"to": "+447700900123", "purpose": "..."}
   app.post("/calls", apiKeyOnly, async (req, res) => {
     const { to, purpose } = req.body ?? {};
     if (typeof to !== "string") return res.status(400).json({ error: "`to` is required" });

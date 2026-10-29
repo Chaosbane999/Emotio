@@ -44,11 +44,11 @@ small. There's no audio handling in this repo.
    Then call the number.
 6. **Make calls:**
    ```bash
-   npm run call -- +15555550123 "Confirm Jane's dentist appointment tomorrow at 3pm"
+   npm run call -- +447700900123 "Confirm Jane's dentist appointment tomorrow at 3pm"
    # or over HTTP
    curl -X POST https://<PUBLIC_BASE_URL>/calls \
      -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
-     -d '{"to": "+15555550123", "purpose": "Confirm the appointment"}'
+     -d '{"to": "+447700900123", "purpose": "Confirm the appointment"}'
    ```
    On a Twilio trial account you can only call numbers you have verified.
 
@@ -60,7 +60,7 @@ small. There's no audio handling in this repo.
 | `AGENT_INSTRUCTIONS` | Extra instructions (business info, policies, what to collect) |
 | `CLAUDE_MODEL` | Defaults to `claude-opus-5-5` |
 | `CLAUDE_EFFORT` | `low` (default) keeps replies fast on a live call |
-| `TTS_VOICE`, `TTS_MODEL` | ElevenLabs voice ID and model (default: "Sarah" on Flash v2.5) |
+| `TTS_VOICE`, `TTS_MODEL` | ElevenLabs voice ID and model (default: "Alice", British, on Flash v2.5) |
 | `TTS_SPEED`, `TTS_STABILITY`, `TTS_SIMILARITY` | Voice tuning; lower stability sounds more expressive |
 | `TTS_PROVIDER`, `LANGUAGE` | Switch to Google/Amazon voices, or change language |
 
@@ -105,10 +105,33 @@ src/
   cli/call.ts `npm run call` helper
 ```
 
-## Notes
+## UK compliance notes
 
-- **Disclosure and consent**: many places require telling people they're talking to an AI
-  and/or that a call may be recorded. Outbound auto-dialing is regulated (e.g. the TCPA in
-  the US). The prompt makes the agent say it's an AI. Check the rules that apply to you.
+This is not legal advice. Check current ICO guidance, or ask a solicitor, before you
+make outbound calls at scale.
+
+- **Outbound marketing calls need prior consent.** Under PECR, calls made by an
+  automated calling system to deliver marketing need the person's specific prior
+  consent (regulation 19). An AI agent should be treated as automated, so the lighter
+  live-call rules (TPS screening and opt-out) are not enough. Keep records of consent.
+- **Service calls are different.** Calls that aren't marketing, such as appointment
+  reminders or delivery updates to existing customers, generally fall outside PECR's
+  marketing rules. Don't slip promotional content into them. Answering inbound calls is
+  not restricted by PECR.
+- **Say it's an AI, and who is calling.** The prompt makes the agent introduce itself as
+  an AI on outbound calls, and the default greeting does the same on inbound calls.
+  Set `AGENT_INSTRUCTIONS` with your business name. Present a valid caller ID: the call
+  uses `TWILIO_PHONE_NUMBER`, so don't withhold it.
+- **"Don't call me again" must be honoured.** The agent confirms and hangs up. Add the
+  number to your own suppression list (not yet automated here).
+- **UK GDPR.** Call transcripts pass through Twilio (speech-to-text) and Anthropic
+  (Claude). Name them as processors in your privacy notice, have a lawful basis, and
+  tell callers how their data is used. This app does not record audio or store
+  transcripts. If you add recording, tell callers at the start of the call.
+- **Ofcom persistent-misuse rules** apply to abandoned and silent calls. The agent speaks
+  as soon as an outbound call is answered, so calls aren't silent.
+
+## Other notes
+
 - The agent waits ~70 ms per spoken character before hanging up so its goodbye isn't
   cut off (`msPerChar` in `src/relay.ts`).

@@ -23,15 +23,15 @@ const Env = z.object({
   AGENT_GREETING: z.string().default("Hi, this is Ava, an AI assistant. How can I help you today?"),
   AGENT_INSTRUCTIONS: z.string().default(""),
   TTS_PROVIDER: z.string().default("ElevenLabs"),
-  // ElevenLabs voice ID. Default: "Sarah", a warm, natural conversational voice.
-  TTS_VOICE: z.string().default("EXAVITQu4vr4xnSDxMaL"),
+  // ElevenLabs voice ID. Default: "Alice", a friendly British female voice.
+  TTS_VOICE: z.string().default("Xb7hH8MSUJpSbSDYk0k2"),
   // ElevenLabs model: flash_v2_5 (fastest), turbo_v2_5 (a bit richer, slightly slower)
   TTS_MODEL: z.string().default("flash_v2_5"),
   // Speed 0.7-1.2; stability/similarity 0.0-1.0 (lower stability = more expressive)
   TTS_SPEED: z.coerce.number().min(0.7).max(1.2).default(1.0),
   TTS_STABILITY: z.coerce.number().min(0).max(1).default(0.45),
   TTS_SIMILARITY: z.coerce.number().min(0).max(1).default(0.8),
-  LANGUAGE: z.string().default("en-US"),
+  LANGUAGE: z.string().default("en-GB"),
 });
 
 export type Config = z.infer<typeof Env>;

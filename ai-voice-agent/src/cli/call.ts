@@ -1,4 +1,4 @@
-// Usage: npm run call -- +15555550123 "Confirm tomorrow's 3pm appointment"
+// Usage: npm run call -- +447700900123 "Confirm tomorrow's 3pm appointment"
 // The server (npm run dev) must be running and reachable at PUBLIC_BASE_URL.
 import { placeCall } from "../calls.js";
 import { loadConfig } from "../config.js";

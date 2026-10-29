@@ -10,7 +10,7 @@ export function isE164(number: string): boolean {
 
 /** Place an outbound call; the agent speaks first once it's answered. */
 export async function placeCall(config: Config, to: string, purpose?: string) {
-  if (!isE164(to)) throw new Error(`"${to}" is not an E.164 phone number (e.g. +15555550123)`);
+  if (!isE164(to)) throw new Error(`"${to}" is not an E.164 phone number (e.g. +447700900123)`);
   const client = twilio(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN);
   return client.calls.create({
     to,

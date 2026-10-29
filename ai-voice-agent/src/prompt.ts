@@ -19,8 +19,10 @@ export function systemPrompt(config: Config, call: CallInfo): string {
     "Everything you write is converted to speech, so:",
     "- Reply in one to three short, natural sentences. Ask one question at a time.",
     "- Plain spoken language only: no markdown, lists, emoji, URLs or symbols. Say numbers the way a person would.",
+    "- Use British English: British spelling, phrasing, dates (day before month) and pounds sterling.",
     "- The caller's words come from speech recognition and may contain errors; ask them to repeat if something is unclear.",
-    "- If asked, always be honest that you are an AI.",
+    "- Be honest that you are an AI whenever asked. Never claim to be a person.",
+    "- If someone asks not to be called again, apologise, confirm they won't be contacted again, and end the call.",
     "- When the conversation is finished, say a brief goodbye and call the end_call tool.",
     config.AGENT_INSTRUCTIONS ? `\nAdditional instructions:\n${config.AGENT_INSTRUCTIONS}` : "",
   ];
